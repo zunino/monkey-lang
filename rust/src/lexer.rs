@@ -1,9 +1,9 @@
-use crate::token::{ETokenType, Token, TokenType};
+use crate::token::Token;
 
 struct Lexer {
     input: Vec<u8>,
-    position: usize,
-    read_position: usize,
+    pos: usize,
+    rpos: usize,
     ch: u8,
 }
 
@@ -11,33 +11,35 @@ impl Lexer {
     fn new(input: &str) -> Self {
         let mut lexer = Self {
             input: input.bytes().collect(),
-            position: 0,
-            read_position: 0,
+            pos: 0,
+            rpos: 0,
             ch: 0,
         };
-        lexer.read_char();
+        lexer.consume_char();
         lexer
     }
 
     fn next_token(&mut self) -> Token {
-        let mut tok: Token;
-        match self.ch {
-            b'=' => { tok = Token::new(ETokenType::Assign, "=") },
-            b';' => { tok = Token::new(ETokenType::Semicolon, ";") },
-            _ => { tok = Token::new(ETokenType::Illegal, "") },
-        }
-        self.read_char();
-        tok
+        let token = match self.ch {
+            b'=' => Token::Assign,
+            b';' => Token::Semicolon,
+            b'+' => Token::Plus,
+            n @ b'0'..=b'9' => Token::Int((n - 0x30) as i64),
+            id @ b'a'..=b'z' => Token::Ident(String::from(id as char)),
+            _ => Token::Illegal
+        };
+        self.consume_char();
+        token
     }
 
-    fn read_char(&mut self) {
-        if self.read_position >= self.input.len() {
+    fn consume_char(&mut self) {
+        if self.rpos >= self.input.len() {
             self.ch = 0;
         } else {
-            self.ch = self.input[self.read_position];
+            self.ch = self.input[self.rpos];
         }
-        self.position = self.read_position;
-        self.read_position += 1;
+        self.pos = self.rpos;
+        self.rpos += 1;
     }
 }
 
@@ -50,11 +52,11 @@ mod tests {
         let input = r"=;+";
         let mut lexer = Lexer::new(input);
 
-        let expected = vec![ETokenType::Assign, ETokenType::Semicolon, ETokenType::Illegal];
+        let expected = vec![Token::Assign, Token::Semicolon, Token::Plus];
 
         for t in 0..expected.len() {
             let tok = lexer.next_token();
-            assert_eq!(tok.token_type, expected[t]);
+            assert_eq!(tok, expected[t]);
         }
     }
 
@@ -63,11 +65,11 @@ mod tests {
         let input = r"BAR";
         let mut lexer = Lexer::new(input);
         assert_eq!(lexer.ch, 'B' as u8);
-        lexer.read_char();
+        lexer.consume_char();
         assert_eq!(lexer.ch, 'A' as u8);
-        lexer.read_char();
+        lexer.consume_char();
         assert_eq!(lexer.ch, 'R' as u8);
-        lexer.read_char();
+        lexer.consume_char();
         assert_eq!(lexer.ch, 0 as u8);
     }
 }
