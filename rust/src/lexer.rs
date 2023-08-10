@@ -1,4 +1,5 @@
-use crate::token::Token;
+use crate::token::{Token, get_keyword};
+use std::str;
 
 struct Lexer {
     input: Vec<u8>,
@@ -25,10 +26,11 @@ impl Lexer {
             b';' => Token::Semicolon,
             b'+' => Token::Plus,
             n @ b'0'..=b'9' => Token::Int((n - 0x30) as i64),
-            id @ b'a'..=b'z' => Token::Ident(String::from(id as char)),
-            _ => Token::Illegal
+            b'a'..=b'z' => self.read_word(),
+            _ => Token::Illegal,
         };
         self.consume_char();
+        println!("----> {:?}", token);
         token
     }
 
@@ -41,6 +43,22 @@ impl Lexer {
         self.pos = self.rpos;
         self.rpos += 1;
     }
+
+    fn read_word(&mut self) -> Token {
+        let position = self.pos;
+
+        while self.ch.is_ascii_alphabetic() {
+            self.consume_char();
+        }
+
+        let word = str::from_utf8(&self.input[position..self.pos])
+                .unwrap();
+
+        if let Some(keyword_token) = get_keyword(word) {
+            return keyword_token.clone();
+        }
+        Token::Ident(word.to_string())
+    }
 }
 
 #[cfg(test)]
@@ -49,10 +67,44 @@ mod tests {
 
     #[test]
     fn test_next_token() {
-        let input = r"=;+";
+        let input = r"let five = 5;
+let ten = 10;
+
+let add = fn(x, y) {
+    x + y;
+};
+
+let result = add(five, ten);";
         let mut lexer = Lexer::new(input);
 
-        let expected = vec![Token::Assign, Token::Semicolon, Token::Plus];
+        let expected = vec![
+            Token::Let,
+            Token::Ident("five".to_string()),
+            Token::Assign,
+            Token::Int(5),
+            Token::Semicolon,
+            Token::Let,
+            Token::Ident("ten".to_string()),
+            Token::Assign,
+            Token::Int(10),
+            Token::Semicolon,
+            Token::Let,
+            Token::Ident("add".to_string()),
+            Token::Assign,
+            Token::Function,
+            Token::Lparen,
+            Token::Ident("x".to_string()),
+            Token::Comma,
+            Token::Ident("y".to_string()),
+            Token::Rparen,
+            Token::Lbrace,
+            Token::Ident("x".to_string()),
+            Token::Plus,
+            Token::Ident("y".to_string()),
+            Token::Semicolon,
+            Token::Rbrace,
+            Token::Semicolon,
+        ];
 
         for t in 0..expected.len() {
             let tok = lexer.next_token();
