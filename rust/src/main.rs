@@ -1,6 +1,9 @@
 mod token;
 mod lexer;
+mod repl;
+
+use std::io::{stdin, stdout};
 
 fn main() {
-    println!("Hello, world!");
+    repl::start(stdin(), stdout());
 }
