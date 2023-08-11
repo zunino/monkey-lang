@@ -1,7 +1,7 @@
-use crate::token::{Token, get_keyword};
+use crate::token::{get_keyword, Token};
 use std::str;
 
-struct Lexer {
+pub struct Lexer {
     input: Vec<u8>,
     pos: usize,
     rpos: usize,
@@ -9,7 +9,7 @@ struct Lexer {
 }
 
 impl Lexer {
-    fn new(input: &str) -> Self {
+    pub fn new(input: &str) -> Self {
         let mut lexer = Self {
             input: input.bytes().collect(),
             pos: 0,
@@ -20,17 +20,23 @@ impl Lexer {
         lexer
     }
 
-    fn next_token(&mut self) -> Token {
+    pub fn next_token(&mut self) -> Token {
+        self.skip_whitespace();
         let token = match self.ch {
             b'=' => Token::Assign,
+            b',' => Token::Comma,
             b';' => Token::Semicolon,
             b'+' => Token::Plus,
-            n @ b'0'..=b'9' => Token::Int((n - 0x30) as i64),
-            b'a'..=b'z' => self.read_word(),
+            b'(' => Token::Lparen,
+            b')' => Token::Rparen,
+            b'{' => Token::Lbrace,
+            b'}' => Token::Rbrace,
+            _ if self.ch.is_ascii_digit() => self.read_number(),
+            _ if self.ch.is_ascii_alphabetic() => self.read_word(),
+            0u8 => Token::Eof,
             _ => Token::Illegal,
         };
         self.consume_char();
-        println!("----> {:?}", token);
         token
     }
 
@@ -44,6 +50,17 @@ impl Lexer {
         self.rpos += 1;
     }
 
+    fn skip_whitespace(&mut self) {
+        while self.ch.is_ascii_whitespace() {
+            self.consume_char();
+        }
+    }
+
+    fn rewind(&mut self) {
+        self.pos -= 1;
+        self.rpos = self.pos + 1;
+    }
+
     fn read_word(&mut self) -> Token {
         let position = self.pos;
 
@@ -52,12 +69,33 @@ impl Lexer {
         }
 
         let word = str::from_utf8(&self.input[position..self.pos])
-                .unwrap();
+            .unwrap()
+            .to_owned();
 
-        if let Some(keyword_token) = get_keyword(word) {
+        self.rewind();
+
+        if let Some(keyword_token) = get_keyword(&word) {
             return keyword_token.clone();
         }
+
         Token::Ident(word.to_string())
+    }
+
+    fn read_number(&mut self) -> Token {
+        let position = self.pos;
+
+        while self.ch.is_ascii_digit() {
+            self.consume_char();
+        }
+
+        let number = str::from_utf8(&self.input[position..self.pos])
+            .unwrap()
+            .parse::<i64>()
+            .unwrap();
+
+        self.rewind();
+
+        Token::Int(number)
     }
 }
 
@@ -67,7 +105,7 @@ mod tests {
 
     #[test]
     fn test_next_token() {
-        let input = r"let five = 5;
+        let input = r"let   five  =   5;
 let ten = 10;
 
 let add = fn(x, y) {
@@ -104,6 +142,17 @@ let result = add(five, ten);";
             Token::Semicolon,
             Token::Rbrace,
             Token::Semicolon,
+            Token::Let,
+            Token::Ident("result".to_string()),
+            Token::Assign,
+            Token::Ident("add".to_string()),
+            Token::Lparen,
+            Token::Ident("five".to_string()),
+            Token::Comma,
+            Token::Ident("ten".to_string()),
+            Token::Rparen,
+            Token::Semicolon,
+            Token::Eof,
         ];
 
         for t in 0..expected.len() {
